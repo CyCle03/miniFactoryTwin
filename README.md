@@ -152,6 +152,19 @@ Open [http://localhost:5173](http://localhost:5173), then press **Start**.
 Use this mode for a portfolio demo or local UI development only; use Docker
 Compose to test the MQTT integration path.
 
+### Production deployment
+
+The production Compose file exposes only the frontend on the host loopback
+interface. MQTT and FastAPI remain private inside the Docker network and Caddy
+terminates HTTPS in front of the application.
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+The included [`ops/Caddyfile.factory`](ops/Caddyfile.factory) routes
+`factory.elcherlab.com` to `127.0.0.1:3800` with an application-specific CSP.
+
 Configuration can be overridden with the environment variables documented in [`.env.example`](.env.example). Mosquitto's anonymous listener is intended for **local development only**; production deployments should add authentication and TLS.
 
 ## Controls and behavior

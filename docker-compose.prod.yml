@@ -1,0 +1,40 @@
+name: minifactorytwin
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    restart: unless-stopped
+    volumes:
+      - ./docker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  simulator:
+    build:
+      context: .
+      dockerfile: simulator/Dockerfile
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      SIM_GOOD_RATE: ${SIM_GOOD_RATE:-0.95}
+    depends_on:
+      - mosquitto
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      CORS_ORIGINS: https://factory.elcherlab.com
+    depends_on:
+      - mosquitto
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3800:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
