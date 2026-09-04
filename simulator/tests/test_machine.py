@@ -85,3 +85,18 @@ def test_repeated_emergency_commands_do_not_duplicate_events() -> None:
     types = [event["event_type"] for event in machine.drain_events()]
     assert types.count("emergency_stop_activated") == 1
     assert types.count("emergency_stop_reset") == 1
+
+
+def test_reject_product_emits_reject_and_completion_events() -> None:
+    config = SimulationConfig(good_probability=0.0)
+    machine = MachineSimulator(config=config, seed=1, initial_time=500.0)
+    machine.handle_command("start")
+    machine.tick(0, now=500.0)
+    machine.tick(6, now=506.0)
+    events = machine.drain_events()
+    types = [event["event_type"] for event in events]
+    assert "product_rejected" in types
+    assert "product_completed" in types
+    completed = next(event for event in events if event["event_type"] == "product_completed")
+    assert completed["metadata"]["result"] == "REJECT"
+    assert completed["metadata"]["cycle_time_seconds"] == 6.0
