@@ -121,6 +121,37 @@ Run the four processes in separate terminals. Python 3.11+ and Node.js 20+ are r
 
    Open [http://localhost:5173](http://localhost:5173).
 
+### Option C — No Docker / no MQTT quick demo
+
+For a complete interactive dashboard demo without Docker Desktop or Mosquitto,
+run the backend's development-only local transport. It reuses the same Python
+machine simulator but bypasses the MQTT hop; the production Compose path is
+unchanged.
+
+```bash
+# Terminal 1, from the repository root
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
+pip install -r backend/requirements.txt -r simulator/requirements.txt
+
+# Windows PowerShell
+$env:LOCAL_SIMULATION = "true"
+uvicorn backend.app.main:app --port 8000
+```
+
+```bash
+# Terminal 2
+cd frontend
+corepack enable
+pnpm install
+pnpm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173), then press **Start**.
+Use this mode for a portfolio demo or local UI development only; use Docker
+Compose to test the MQTT integration path.
+
 Configuration can be overridden with the environment variables documented in [`.env.example`](.env.example). Mosquitto's anonymous listener is intended for **local development only**; production deployments should add authentication and TLS.
 
 ## Controls and behavior

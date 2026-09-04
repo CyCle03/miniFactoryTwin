@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 manager = WebSocketManager()
 latest_state = empty_machine_state()
+local_mode = os.getenv("LOCAL_SIMULATION", "false").lower() in {"1", "true", "yes"}
+local_runtime: object | None = None
 
 
 async def receive_state(state: MachineState) -> None:
@@ -37,10 +39,24 @@ mqtt_bridge = MqttBridge(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global local_runtime
     del app
-    mqtt_bridge.start(asyncio.get_running_loop())
+    if local_mode:
+        # Delayed import keeps production Docker images independent of this
+        # development-only adapter and the simulator package.
+        from .local_simulator import LocalSimulatorRuntime
+
+        local_runtime = LocalSimulatorRuntime(receive_state)
+        await local_runtime.start()
+        logger.info("Local simulator mode enabled; MQTT is bypassed")
+    else:
+        mqtt_bridge.start(asyncio.get_running_loop())
     yield
-    mqtt_bridge.stop()
+    if local_runtime is not None:
+        await local_runtime.stop()  # type: ignore[union-attr]
+        local_runtime = None
+    else:
+        mqtt_bridge.stop()
 
 
 app = FastAPI(
@@ -64,7 +80,11 @@ app.add_middleware(
 
 @app.get("/health")
 async def health() -> dict[str, str | bool]:
-    return {"status": "ok", "mqtt_connected": mqtt_bridge.connected}
+    return {
+        "status": "ok",
+        "mqtt_connected": mqtt_bridge.connected,
+        "local_simulation": local_mode,
+    }
 
 
 @app.get("/api/state", response_model=MachineState)
@@ -74,6 +94,10 @@ async def get_state() -> MachineState:
 
 @app.post("/api/commands", status_code=status.HTTP_202_ACCEPTED)
 async def post_command(command: CommandMessage) -> dict[str, str]:
+    if local_runtime is not None:
+        await local_runtime.handle_command(command)  # type: ignore[union-attr]
+        logger.info("Applied local machine command: %s", command.command.value)
+        return {"status": "accepted", "command": command.command.value}
     if not mqtt_bridge.publish_command(command):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -95,4 +119,3 @@ async def machine_websocket(websocket: WebSocket) -> None:
     except Exception:
         await manager.disconnect(websocket)
         logger.exception("WebSocket connection failed")
-
