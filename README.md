@@ -17,6 +17,8 @@ MiniFactoryTwin is a small but working conveyor-cell digital twin. A Python mach
 - Reconnecting frontend that remains usable during network loss
 - Modbus-ready and machine-vision-ready data-source separation
 - Docker Compose and local development workflows
+- Persistent SQLite production and alarm/event history
+- Cycle-time analytics and lightweight production charts
 
 ## Architecture
 
@@ -24,6 +26,7 @@ MiniFactoryTwin is a small but working conveyor-cell digital twin. A Python mach
 flowchart LR
     SIM[Python Simulator] -->|factory/machine/state| MQTT[(Mosquitto)]
     MQTT --> API[FastAPI Backend]
+    API --> DB[(SQLite history)]
     API -->|MachineState / WebSocket| UI[React Dashboard]
     UI -->|REST command| API
     API -->|factory/machine/command| MQTT
@@ -41,6 +44,7 @@ The dashboard knows only the `MachineState` schema. It does not import simulator
 | --- | --- | --- |
 | Simulator → backend | `factory/machine/state` | Full `MachineState` JSON |
 | Backend → simulator | `factory/machine/command` | `{"command":"start"}` |
+| Simulator → backend | `factory/machine/event` | Typed transition event JSON |
 
 ### MachineState
 
@@ -212,12 +216,20 @@ MiniFactoryTwin/
 See [Development Roadmap](docs/ROADMAP.md) for detailed scope, dependencies,
 out-of-scope decisions, and acceptance criteria for every planned version.
 
-### v0.2
+### v0.2 (complete)
 
-- SQLite production history
-- Alarm and event history
-- Cycle-time calculation
-- Production charts
+- SQLite production history in the `production-data` Docker volume (`/data/minifactory.db`)
+- Typed MQTT alarm and event history on `factory/machine/event`
+- Cycle-time calculation and hourly production charts
+- Read-only APIs: `/api/history/production`, `/api/history/events`, `/api/analytics/summary`, and `/api/analytics/production`
+
+Back up without deleting the volume:
+
+```bash
+docker compose -f docker-compose.prod.yml exec backend python -c "import sqlite3; src=sqlite3.connect('/data/minifactory.db'); dst=sqlite3.connect('/data/minifactory-backup.db'); src.backup(dst); dst.close(); src.close()"
+```
+
+Restore only while the backend is stopped, after preserving the current database. RESET clears live counters and workpieces but never history.
 
 ### v0.3
 

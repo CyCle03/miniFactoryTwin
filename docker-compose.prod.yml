@@ -26,6 +26,9 @@ services:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
       CORS_ORIGINS: https://factory.elcherlab.com
+      DATABASE_PATH: /data/minifactory.db
+    volumes:
+      - production-data:/data
     depends_on:
       - mosquitto
 
@@ -38,3 +41,6 @@ services:
       backend:
         condition: service_healthy
 
+
+volumes:
+  production-data:

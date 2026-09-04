@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Controls } from './components/Controls'
 import { FactoryFloor } from './components/FactoryFloor'
 import { Header } from './components/Header'
+import { HistoryDashboard } from './components/HistoryDashboard'
 import { ProductionPanel } from './components/ProductionPanel'
 import { StatusPanel } from './components/StatusPanel'
 import { useMachineState } from './hooks/useMachineState'
@@ -34,9 +35,10 @@ function App() {
           <StatusPanel state={state} />
           <ProductionPanel production={state.production} />
         </div>
+        <HistoryDashboard />
         <Controls state={state} busy={busy} connected={connection === 'connected'} onCommand={handleCommand} />
       </main>
-      <footer><span>MiniFactoryTwin v0.1</span><span>SIMULATED DEVICE</span></footer>
+      <footer><span>MiniFactoryTwin v0.2</span><span>SIMULATED DEVICE</span></footer>
     </div>
   )
 }

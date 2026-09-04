@@ -3,10 +3,15 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
+from datetime import datetime
+
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import CommandMessage, MachineState, empty_machine_state
+from .history import HistoryRepository
+from .models import (AnalyticsSummary, CommandMessage, EventRecord, EventSeverity,
+                     MachineEvent, MachineState, ProductResult, ProductionBucket,
+                     ProductionRecord, empty_machine_state)
 from .mqtt_client import MqttBridge
 from .websocket_manager import WebSocketManager
 
@@ -17,6 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 manager = WebSocketManager()
+history = HistoryRepository(os.getenv("DATABASE_PATH", "./data/minifactory.db"))
 latest_state = empty_machine_state()
 local_mode = os.getenv("LOCAL_SIMULATION", "false").lower() in {"1", "true", "yes"}
 local_runtime: object | None = None
@@ -28,12 +34,18 @@ async def receive_state(state: MachineState) -> None:
     await manager.broadcast(state)
 
 
+async def receive_event(event: MachineEvent) -> None:
+    history.record_event(event)
+
+
 mqtt_bridge = MqttBridge(
     host=os.getenv("MQTT_HOST", "localhost"),
     port=int(os.getenv("MQTT_PORT", "1883")),
     state_topic=os.getenv("MQTT_STATE_TOPIC", "factory/machine/state"),
     command_topic=os.getenv("MQTT_COMMAND_TOPIC", "factory/machine/command"),
+    event_topic=os.getenv("MQTT_EVENT_TOPIC", "factory/machine/event"),
     state_handler=receive_state,
+    event_handler=receive_event,
 )
 
 
@@ -46,7 +58,7 @@ async def lifespan(app: FastAPI):
         # development-only adapter and the simulator package.
         from .local_simulator import LocalSimulatorRuntime
 
-        local_runtime = LocalSimulatorRuntime(receive_state)
+        local_runtime = LocalSimulatorRuntime(receive_state, receive_event)
         await local_runtime.start()
         logger.info("Local simulator mode enabled; MQTT is bypassed")
     else:
@@ -61,7 +73,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="MiniFactoryTwin API",
-    version="0.1.0",
+    version="0.2.0",
     description="MQTT-to-WebSocket bridge for the MiniFactoryTwin conveyor cell.",
     lifespan=lifespan,
 )
@@ -105,6 +117,30 @@ async def post_command(command: CommandMessage) -> dict[str, str]:
         )
     logger.info("Published machine command: %s", command.command.value)
     return {"status": "accepted", "command": command.command.value}
+
+
+@app.get("/api/history/production", response_model=list[ProductionRecord])
+def production_history(limit: int = Query(50, ge=1, le=500), start: datetime | None = None, end: datetime | None = None, result: ProductResult | None = None):
+    if start and end and start > end:
+        raise HTTPException(status_code=422, detail="start must not be after end")
+    return history.production(limit, start, end, result)
+
+
+@app.get("/api/history/events", response_model=list[EventRecord])
+def event_history(limit: int = Query(50, ge=1, le=500), start: datetime | None = None, end: datetime | None = None, severity: EventSeverity | None = None, event_type: str | None = Query(None, min_length=1, max_length=80)):
+    if start and end and start > end:
+        raise HTTPException(status_code=422, detail="start must not be after end")
+    return history.events(limit, start, end, severity.value if severity else None, event_type)
+
+
+@app.get("/api/analytics/summary", response_model=AnalyticsSummary)
+def analytics_summary():
+    return history.summary()
+
+
+@app.get("/api/analytics/production", response_model=list[ProductionBucket])
+def production_analytics(limit: int = Query(24, ge=1, le=168)):
+    return history.buckets(limit)
 
 
 @app.websocket("/ws/machine")

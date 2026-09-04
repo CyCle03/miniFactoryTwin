@@ -28,6 +28,9 @@ services:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
       CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+      DATABASE_PATH: /data/minifactory.db
+    volumes:
+      - production-data:/data
     ports:
       - "8000:8000"
     depends_on:
@@ -42,3 +45,6 @@ services:
       backend:
         condition: service_healthy
 
+
+volumes:
+  production-data:

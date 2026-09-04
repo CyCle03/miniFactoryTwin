@@ -86,3 +86,59 @@ def empty_machine_state() -> MachineState:
         products=[],
     )
 
+
+class EventSeverity(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+    ERROR = "ERROR"
+
+
+class MachineEvent(BaseModel):
+    event_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    timestamp: datetime
+    event_type: str = Field(min_length=1)
+    severity: EventSeverity
+    message: str = Field(min_length=1)
+    product_id: int | None = Field(default=None, ge=1)
+    metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
+
+
+class ProductionRecord(BaseModel):
+    id: int
+    product_id: int
+    result: ProductResult
+    started_at: datetime
+    inspected_at: datetime
+    completed_at: datetime
+    cycle_time_seconds: float
+    created_at: datetime
+
+
+class EventRecord(BaseModel):
+    id: int
+    timestamp: datetime
+    event_type: str
+    severity: EventSeverity
+    message: str
+    product_id: int | None
+    metadata: dict[str, str | int | float | bool | None]
+
+
+class AnalyticsSummary(BaseModel):
+    total: int
+    good: int
+    reject: int
+    recent_cycle_time: float | None
+    average_cycle_time: float | None
+    min_cycle_time: float | None
+    max_cycle_time: float | None
+
+
+class ProductionBucket(BaseModel):
+    bucket: datetime
+    total: int
+    good: int
+    reject: int
+    average_cycle_time: float | None
