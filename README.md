@@ -266,3 +266,25 @@ Industrial systems are rarely just PLC programs or just dashboards. They connect
 ## License
 
 [MIT](LICENSE)
+
+## v0.3 Modbus mode
+
+The same API, WebSocket contract, dashboard, history, and controls operate with
+either MQTT state or the Modbus TCP adapter. MQTT remains the safe default.
+
+- Use DATA_SOURCE=mqtt for the original simulator.
+- Use DATA_SOURCE=modbus for the Modbus TCP simulator or compatible PLC.
+- Configure MODBUS_HOST, MODBUS_PORT, MODBUS_UNIT_ID, MODBUS_POLL_INTERVAL,
+  MODBUS_STALE_TIMEOUT, and MODBUS_COMMAND_TIMEOUT as needed.
+- GET /api/source reports the active source, connection, stale state, and error.
+- The Modbus port is private to the Compose network and is not host-published.
+
+See [Modbus register map v1](docs/MODBUS_REGISTER_MAP.md) for coils, registers,
+scaling, command acknowledgement, and real-PLC replacement requirements.
+
+Run a Modbus-mode deployment with:
+
+    DATA_SOURCE=modbus docker compose -f docker-compose.prod.yml up -d --build
+
+Switching sources is explicit and requires a backend recreation. Automatic
+control-source switching while running is intentionally not implemented.

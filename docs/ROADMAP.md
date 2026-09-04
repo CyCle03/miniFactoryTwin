@@ -25,7 +25,7 @@ only when its acceptance criteria are met.
 | --- | --- | --- | --- |
 | v0.1 | Working digital twin | Live conveyor cell using MQTT, FastAPI, WebSocket, and React | Complete |
 | v0.2 | History and analytics | Persistent production records, events, cycle time, and charts | Complete |
-| v0.3 | PLC communication | Modbus TCP simulator, register map, and replaceable PLC adapter | Planned |
+| v0.3 | PLC communication | Modbus TCP simulator, register map, and replaceable PLC adapter | Complete |
 | v0.4 | Machine vision | Camera pipeline and YOLO-backed inspection results | Planned |
 | v0.5 | Configuration | Configurable components, mappings, and simulated/real modes | Planned |
 | v0.6 | Factory scale | Multiple cells and a factory-level layout | Planned |

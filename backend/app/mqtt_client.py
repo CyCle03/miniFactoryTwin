@@ -24,6 +24,7 @@ class MqttBridge:
         event_topic: str,
         state_handler: StateHandler,
         event_handler: EventHandler,
+        accept_state: bool = True,
     ) -> None:
         self.host = host
         self.port = port
@@ -32,6 +33,7 @@ class MqttBridge:
         self.event_topic = event_topic
         self._state_handler = state_handler
         self._event_handler = event_handler
+        self.accept_state = accept_state
         self._loop: asyncio.AbstractEventLoop | None = None
         self.connected = False
         self.client = mqtt.Client(
@@ -114,6 +116,8 @@ class MqttBridge:
                 handler = self._event_handler
                 value = event
             else:
+                if not self.accept_state:
+                    return
                 handler = self._state_handler
                 value = MachineState.model_validate_json(message.payload)
         except ValidationError as exc:

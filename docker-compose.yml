@@ -9,6 +9,18 @@ services:
     volumes:
       - ./docker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
+  modbus-simulator:
+    build:
+      context: .
+      dockerfile: modbus_simulator/Dockerfile
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MODBUS_PORT: 5020
+    depends_on:
+      - mosquitto
+
   simulator:
     build:
       context: .
@@ -27,6 +39,9 @@ services:
     environment:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
+      DATA_SOURCE: ${DATA_SOURCE:-mqtt}
+      MODBUS_HOST: modbus-simulator
+      MODBUS_PORT: 5020
       CORS_ORIGINS: http://localhost:5173,http://localhost:8080
       DATABASE_PATH: /data/minifactory.db
     volumes:
@@ -35,6 +50,7 @@ services:
       - "8000:8000"
     depends_on:
       - mosquitto
+      - modbus-simulator
 
   frontend:
     build: ./frontend

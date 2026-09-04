@@ -48,3 +48,7 @@ export async function fetchHistoryDashboard() {
   ])
   return { production, events, summary, buckets }
 }
+
+export async function fetchSourceStatus(): Promise<import('../types/source').SourceStatus> {
+  return fetchJson<import('../types/source').SourceStatus>('/api/source')
+}

@@ -142,3 +142,10 @@ class ProductionBucket(BaseModel):
     good: int
     reject: int
     average_cycle_time: float | None
+
+
+class SourceStatus(BaseModel):
+    source: str
+    connected: bool
+    stale: bool
+    error: str | None = None

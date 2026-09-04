@@ -1,0 +1,47 @@
+SCHEMA_VERSION = 1
+
+COIL_POWER = 0
+COIL_RUNNING = 1
+COIL_EMERGENCY = 2
+COIL_CONVEYOR = 3
+COIL_SENSOR_1 = 4
+COIL_SENSOR_2 = 5
+COIL_CYLINDER = 6
+STATUS_COIL_COUNT = 7
+
+COMMAND_COILS = {
+    "start": 100,
+    "stop": 101,
+    "reset": 102,
+    "emergency_stop": 103,
+    "emergency_reset": 104,
+}
+
+REG_SCHEMA_VERSION = 0
+REG_HEARTBEAT = 1
+REG_COMMAND_ACK = 2
+REG_CONVEYOR_SPEED = 3
+REG_TOTAL_HI = 4
+REG_TOTAL_LO = 5
+REG_GOOD_HI = 6
+REG_GOOD_LO = 7
+REG_REJECT_HI = 8
+REG_REJECT_LO = 9
+REG_PPM = 10
+REG_PRODUCT_COUNT = 11
+PRODUCT_BASE = 100
+PRODUCT_STRIDE = 4
+MAX_PRODUCTS = 16
+HOLDING_REGISTER_COUNT = PRODUCT_BASE + PRODUCT_STRIDE * MAX_PRODUCTS
+
+RESULT_NONE = 0
+RESULT_GOOD = 1
+RESULT_REJECT = 2
+
+
+def encode_u32(value: int) -> tuple[int, int]:
+    return ((value >> 16) & 0xFFFF, value & 0xFFFF)
+
+
+def decode_u32(high: int, low: int) -> int:
+    return (high << 16) | low

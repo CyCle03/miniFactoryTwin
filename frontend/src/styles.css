@@ -144,3 +144,6 @@ th { color: var(--muted); font: 600 9px Consolas, monospace; letter-spacing: .08
 .empty-state { padding: 24px; color: var(--muted); text-align: center; font-size: 11px; }
 .history-error { grid-column: 1 / -1; margin: 0; padding: 10px 14px; color: var(--amber); border: 1px solid #765724; background: #241b0c; font-size: 11px; }
 @media (max-width: 820px) { .history-dashboard { grid-template-columns: 1fr; }.cycle-metrics { grid-template-columns: repeat(2, 1fr); } }
+.source-badge { margin-right: 14px; padding: 6px 9px; border: 1px solid #235b45; color: var(--green); font: 600 9px Consolas, monospace; letter-spacing: .08em; }
+.source-badge.stale { color: var(--amber); border-color: #765724; background: #241b0c; }
+@media (max-width: 620px) { .source-badge { display: none; } }
