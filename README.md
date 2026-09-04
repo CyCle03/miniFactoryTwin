@@ -209,6 +209,9 @@ MiniFactoryTwin/
 
 ## Roadmap
 
+See [Development Roadmap](docs/ROADMAP.md) for detailed scope, dependencies,
+out-of-scope decisions, and acceptance criteria for every planned version.
+
 ### v0.2
 
 - SQLite production history
