@@ -34,4 +34,4 @@ jobs:
           cache: pip
       - run: pip install -r backend/requirements.txt -r simulator/requirements-dev.txt
       - run: python -m compileall -q backend simulator
-      - run: pytest backend/tests simulator/tests
+      - run: python -m pytest backend/tests simulator/tests
