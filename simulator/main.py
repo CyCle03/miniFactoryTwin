@@ -4,11 +4,13 @@ import os
 import signal
 import threading
 import time
+from pathlib import Path
 
 import paho.mqtt.client as mqtt
 
 from simulator.constants import SimulationConfig
 from simulator.machine import MachineSimulator
+from simulator.vision import AsyncInspectionProvider, ImageInspectionAdapter, YoloInspectionAdapter
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -27,7 +29,36 @@ class SimulatorService:
         self.tick_rate = float(os.getenv("SIM_TICK_RATE", "20"))
         self.publish_rate = float(os.getenv("SIM_PUBLISH_RATE", "10"))
         good_rate = float(os.getenv("SIM_GOOD_RATE", "0.95"))
-        self.machine = MachineSimulator(SimulationConfig(good_probability=good_rate))
+        inspection_provider = None
+        vision_mode = os.getenv("VISION_MODE", "disabled").lower()
+        if vision_mode in {"images", "yolo"}:
+            image_directory = Path(os.getenv("VISION_IMAGE_DIR", "/app/inspection-images"))
+            if not image_directory.is_dir():
+                raise ValueError(f"VISION_IMAGE_DIR does not exist: {image_directory}")
+            image_paths = sorted(path for path in image_directory.iterdir() if path.is_file())
+            minimum_confidence = float(os.getenv("VISION_MIN_CONFIDENCE", "0.7"))
+            if vision_mode == "images":
+                inspection_provider = ImageInspectionAdapter(
+                    image_paths, minimum_confidence=minimum_confidence,
+                )
+            else:
+                inspection_provider = YoloInspectionAdapter(
+                    image_paths,
+                    model_path=Path(os.getenv("VISION_MODEL_PATH", "/app/models/best.pt")),
+                    minimum_confidence=minimum_confidence,
+                    good_classes={value.strip() for value in os.getenv(
+                        "VISION_GOOD_CLASSES", "good"
+                    ).split(",") if value.strip()},
+                )
+        elif vision_mode != "disabled":
+            raise ValueError(f"Unsupported VISION_MODE: {vision_mode}")
+        async_inspection = AsyncInspectionProvider(inspection_provider) if inspection_provider else None
+        self.machine = MachineSimulator(
+            SimulationConfig(good_probability=good_rate),
+            inspection_provider=async_inspection,
+            inspection_timeout_seconds=float(os.getenv("VISION_TIMEOUT", "1.0")),
+        )
+        self.inspection_provider = async_inspection
         self.machine_lock = threading.Lock()
         self.stop_event = threading.Event()
         self.connected = False
@@ -63,6 +94,8 @@ class SimulatorService:
                     self._publish_state(current)
                     next_publish = current + publish_interval
         finally:
+            if self.inspection_provider is not None:
+                self.inspection_provider.close()
             self.client.disconnect()
             self.client.loop_stop()
             logger.info("Simulator stopped")

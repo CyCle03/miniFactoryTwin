@@ -1,0 +1,11 @@
+services:
+  simulator:
+    build:
+      context: .
+      dockerfile: simulator/Dockerfile.yolo
+    environment:
+      VISION_MODE: yolo
+      VISION_MODEL_PATH: /app/models/best.pt
+      VISION_GOOD_CLASSES: ${VISION_GOOD_CLASSES:-good}
+    volumes:
+      - ${VISION_MODEL_DIR:-./models}:/app/models:ro

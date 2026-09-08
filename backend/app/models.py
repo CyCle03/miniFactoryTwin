@@ -113,6 +113,10 @@ class ProductionRecord(BaseModel):
     inspected_at: datetime
     completed_at: datetime
     cycle_time_seconds: float
+    inspection_confidence: float | None = Field(default=None, ge=0, le=1)
+    inspection_latency_ms: float | None = Field(default=None, ge=0)
+    inspection_model: str | None = None
+    inspection_defect: str | None = None
     created_at: datetime
 
 

@@ -1,8 +1,12 @@
 # MiniFactoryTwin
 
+[English](README.md) | [한국어](README.ko.md)
+
 > An open-source smart factory digital twin simulator for industrial automation, PLC communication and machine vision experiments.
 
-MiniFactoryTwin v0.3 is a production-cell digital twin with selectable MQTT and Modbus TCP state sources. FastAPI normalizes either source into a shared MachineState, persists production history in SQLite, and streams live state to the React HMI over WebSocket.
+**Live demo: [https://factory.elcherlab.com](https://factory.elcherlab.com)**
+
+MiniFactoryTwin is a production-cell digital twin with selectable MQTT and Modbus TCP state sources. FastAPI normalizes either source into a shared MachineState, persists production history in SQLite, and streams live state to the React HMI over WebSocket.
 
 ## Features
 
@@ -33,10 +37,10 @@ flowchart LR
     MQTT --> SIM
 
     MODBUS[Modbus simulator / compatible PLC] -->|Register map v1| API
-    CV[Future OpenCV / YOLO] -. inspection result .-> SIM
+    CV[OpenCV / optional YOLO] -->|inspection result| SIM
 ```
 
-The dashboard knows only the `MachineState` schema. It does not import simulator code or MQTT concepts. MQTT and Modbus adapters feed the same backend handler without changing the React components. Camera, ROS2, and TurtleBot features remain out of scope through v0.3.
+The dashboard knows only the `MachineState` schema. It does not import simulator code or MQTT concepts. MQTT and Modbus adapters feed the same backend handler without changing the React components, and machine-vision inference is isolated behind a replaceable inspection adapter.
 
 ### MQTT topics
 
@@ -60,21 +64,20 @@ The dashboard knows only the `MachineState` schema. It does not import simulator
 }
 ```
 
-## Screenshots
-
-Add a dashboard screenshot or short GIF here after deploying the project:
-
-<!-- docs/screenshots/dashboard.png -->
-
 ## Quick Start
 
-### Option A — Docker Compose (recommended)
+### Option A — Hosted demo (recommended)
+
+Open [https://factory.elcherlab.com](https://factory.elcherlab.com) and press
+**Start**. No installation is required.
+
+### Option B — Docker Compose
 
 Requirements: Docker Engine 20.10+ with the Compose plugin.
 
 ```bash
-git clone <your-repository-url>
-cd MiniFactoryTwin
+git clone https://github.com/CyCle03/miniFactoryTwin.git
+cd miniFactoryTwin
 docker compose up --build
 ```
 
@@ -86,7 +89,7 @@ Stop the stack with:
 docker compose down
 ```
 
-### Option B — Local development
+### Option C — Local development
 
 Run the four processes in separate terminals. Python 3.11+ and Node.js 20+ are recommended.
 
@@ -125,7 +128,7 @@ Run the four processes in separate terminals. Python 3.11+ and Node.js 20+ are r
 
    Open [http://localhost:5173](http://localhost:5173).
 
-### Option C — No Docker / no MQTT quick demo
+### Option D — No Docker / no MQTT quick demo
 
 For a complete interactive dashboard demo without Docker Desktop or Mosquitto,
 run the backend's development-only local transport. It reuses the same Python
@@ -153,8 +156,43 @@ pnpm run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173), then press **Start**.
-Use this mode for a portfolio demo or local UI development only; use Docker
-Compose to test the MQTT integration path.
+Use this mode for local UI development only; use Docker Compose to test the
+MQTT integration path.
+
+### Optional image inspection
+
+The simulator keeps its original seeded GOOD/REJECT behavior by default. To
+classify products from repeatable sample images at Sensor 2, place supported
+images in `inspection-images/` and start the stack with image inspection enabled:
+
+```bash
+VISION_MODE=images docker compose up --build
+```
+
+Images are processed in filename order and reused cyclically by product ID.
+The development brightness adapter provides deterministic, CPU-only behavior
+behind the same interface intended for a later YOLO adapter. Unreadable images,
+processing errors, and results below `VISION_MIN_CONFIDENCE` fail safe to
+`REJECT`. Confidence, latency, model, and defect metadata are recorded with the
+inspection event and production history. Do not mount untrusted camera feeds.
+
+For YOLO inference, place an Ultralytics-compatible model at `models/best.pt`
+and use the optional Compose override. The larger YOLO dependencies are kept
+out of the default simulator image:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.vision.yml up --build
+```
+
+Set `VISION_GOOD_CLASSES` to a comma-separated list of model classes that are
+accepted as GOOD. Every other class, missing detection, inference error, or
+low-confidence result follows the fail-safe REJECT path. Review the Ultralytics
+license terms before production or commercial use.
+
+Inference runs on a dedicated worker so machine-state publication remains
+responsive. A product waits at the decision point for up to `VISION_TIMEOUT`
+seconds; a late result is discarded and the product follows the fail-safe
+REJECT route.
 
 ### Production deployment
 
@@ -170,7 +208,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 The included [`ops/Caddyfile.factory`](ops/Caddyfile.factory) routes
 `factory.elcherlab.com` to `127.0.0.1:3800` with an application-specific CSP.
 
-Configuration can be overridden with the environment variables documented in [.env.example](.env.example). See [Security and Network Exposure](docs/SECURITY.md) for active headers, private ports, verification, and deferred CSP work. Mosquitto anonymous access is for isolated development networks only.
+Configuration can be overridden with the environment variables documented in [.env.example](.env.example). See [Security and Network Exposure](docs/SECURITY.md) for security headers, private ports, and verification. Mosquitto anonymous access is for isolated development networks only.
 
 ## Controls and behavior
 
@@ -291,10 +329,8 @@ control-source switching while running is intentionally not implemented.
 
 ## Security documentation
 
-See [Security and Network Exposure](docs/SECURITY.md) for the active production
-headers, Docker network boundary, verification commands, and deferred CSP
-tightening. The current inline-style CSP exception remains documented and is
-intentionally unchanged.
+See [Security and Network Exposure](docs/SECURITY.md) for production security
+headers, the Docker network boundary, and verification commands.
 
 ## License
 

@@ -4,6 +4,8 @@ import type { AnalyticsSummary, EventRecord, ProductionBucket, ProductionRecord 
 
 const EMPTY: AnalyticsSummary = { total: 0, good: 0, reject: 0, recent_cycle_time: null, average_cycle_time: null, min_cycle_time: null, max_cycle_time: null }
 const seconds = (value: number | null) => value === null ? '—' : `${value.toFixed(2)} s`
+const confidence = (value: number | null) => value === null ? '—' : `${(value * 100).toFixed(1)}%`
+const latency = (value: number | null) => value === null ? '—' : `${value.toFixed(1)} ms`
 const time = (value: string) => new Date(value).toLocaleString()
 
 export function HistoryDashboard() {
@@ -45,16 +47,33 @@ export function HistoryDashboard() {
         </div>}
       <div className="chart-legend"><span>■ GOOD</span><span>■ REJECT</span></div>
     </div>
+    <InspectionPanel record={production[0]} />
     <HistoryTable production={production} />
     <EventTable events={events} />
   </section>
 }
 
+function InspectionPanel({ record }: { record?: ProductionRecord }) {
+  const hasVision = record?.inspection_model != null
+  return <section className="panel inspection-panel">
+    <header className="section-heading compact"><div><span className="eyebrow">MACHINE VISION</span><h2>Latest Inspection</h2></div></header>
+    {!record ? <p className="empty-state">No inspection results yet.</p> :
+      <div className="inspection-metrics">
+        <div><span>PRODUCT</span><strong>#{record.product_id}</strong></div>
+        <div><span>RESULT</span><strong className={record.result.toLowerCase()}>{record.result}</strong></div>
+        <div><span>CONFIDENCE</span><strong>{confidence(record.inspection_confidence)}</strong></div>
+        <div><span>LATENCY</span><strong>{latency(record.inspection_latency_ms)}</strong></div>
+        <div><span>MODEL</span><strong>{record.inspection_model ?? 'SIMULATED'}</strong></div>
+        <div><span>DEFECT</span><strong>{hasVision ? record.inspection_defect ?? 'NONE' : '—'}</strong></div>
+      </div>}
+  </section>
+}
+
 function HistoryTable({ production }: { production: ProductionRecord[] }) {
   return <section className="panel table-panel"><header className="section-heading compact"><div><span className="eyebrow">TRACEABILITY</span><h2>Production History</h2></div></header>
-    <div className="table-scroll"><table><thead><tr><th>Product</th><th>Result</th><th>Completed</th><th>Cycle</th></tr></thead>
-      <tbody>{production.length === 0 ? <tr><td colSpan={4} className="empty-state">No production history.</td></tr> : production.map((row) =>
-        <tr key={row.id}><td>#{row.product_id}</td><td><span className={`status-label ${row.result.toLowerCase()}`}>{row.result === 'GOOD' ? '✓ GOOD' : '✕ REJECT'}</span></td><td>{time(row.completed_at)}</td><td>{seconds(row.cycle_time_seconds)}</td></tr>)}</tbody>
+    <div className="table-scroll"><table><thead><tr><th>Product</th><th>Result</th><th>Confidence</th><th>Latency</th><th>Completed</th><th>Cycle</th></tr></thead>
+      <tbody>{production.length === 0 ? <tr><td colSpan={6} className="empty-state">No production history.</td></tr> : production.map((row) =>
+        <tr key={row.id}><td>#{row.product_id}</td><td><span className={`status-label ${row.result.toLowerCase()}`}>{row.result === 'GOOD' ? '✓ GOOD' : '✕ REJECT'}</span></td><td>{confidence(row.inspection_confidence)}</td><td>{latency(row.inspection_latency_ms)}</td><td>{time(row.completed_at)}</td><td>{seconds(row.cycle_time_seconds)}</td></tr>)}</tbody>
     </table></div></section>
 }
 
