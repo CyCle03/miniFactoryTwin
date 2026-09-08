@@ -1,5 +1,7 @@
 # MiniFactoryTwin
 
+[English](README.md) | [한국어](README.ko.md)
+
 > An open-source smart factory digital twin simulator for industrial automation, PLC communication and machine vision experiments.
 
 MiniFactoryTwin v0.3 is a production-cell digital twin with selectable MQTT and Modbus TCP state sources. FastAPI normalizes either source into a shared MachineState, persists production history in SQLite, and streams live state to the React HMI over WebSocket.
