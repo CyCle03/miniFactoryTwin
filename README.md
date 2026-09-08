@@ -2,7 +2,7 @@
 
 > An open-source smart factory digital twin simulator for industrial automation, PLC communication and machine vision experiments.
 
-MiniFactoryTwin is a small but working conveyor-cell digital twin. A Python machine simulator publishes a source-neutral `MachineState` over MQTT, FastAPI validates and forwards it over WebSocket, and a React dashboard renders the equipment state. The first release focuses on a believable control loop and a clean boundary between equipment data and UI code.
+MiniFactoryTwin v0.3 is a production-cell digital twin with selectable MQTT and Modbus TCP state sources. FastAPI normalizes either source into a shared MachineState, persists production history in SQLite, and streams live state to the React HMI over WebSocket.
 
 ## Features
 
@@ -15,8 +15,10 @@ MiniFactoryTwin is a small but working conveyor-cell digital twin. A Python mach
 - FastAPI backend and WebSocket real-time dashboard
 - Typed `MachineState` contract validated at the backend boundary
 - Reconnecting frontend that remains usable during network loss
-- Modbus-ready and machine-vision-ready data-source separation
+- Selectable MQTT or Modbus TCP source with reconnect and stale-data handling
 - Docker Compose and local development workflows
+- Persistent SQLite production and alarm/event history
+- Cycle-time analytics and lightweight production charts
 
 ## Architecture
 
@@ -24,16 +26,17 @@ MiniFactoryTwin is a small but working conveyor-cell digital twin. A Python mach
 flowchart LR
     SIM[Python Simulator] -->|factory/machine/state| MQTT[(Mosquitto)]
     MQTT --> API[FastAPI Backend]
+    API --> DB[(SQLite history)]
     API -->|MachineState / WebSocket| UI[React Dashboard]
     UI -->|REST command| API
     API -->|factory/machine/command| MQTT
     MQTT --> SIM
 
-    PLC[Future PLC / Modbus] -. MachineState adapter .-> API
+    MODBUS[Modbus simulator / compatible PLC] -->|Register map v1| API
     CV[Future OpenCV / YOLO] -. inspection result .-> SIM
 ```
 
-The dashboard knows only the `MachineState` schema. It does not import simulator code or MQTT concepts. A future Modbus/PLC adapter can therefore feed the same backend handler without changing the React components. ROS2 and TurtleBot are intentionally **not implemented** in v0.1.
+The dashboard knows only the `MachineState` schema. It does not import simulator code or MQTT concepts. MQTT and Modbus adapters feed the same backend handler without changing the React components. Camera, ROS2, and TurtleBot features remain out of scope through v0.3.
 
 ### MQTT topics
 
@@ -41,6 +44,7 @@ The dashboard knows only the `MachineState` schema. It does not import simulator
 | --- | --- | --- |
 | Simulator → backend | `factory/machine/state` | Full `MachineState` JSON |
 | Backend → simulator | `factory/machine/command` | `{"command":"start"}` |
+| Simulator → backend | `factory/machine/event` | Typed transition event JSON |
 
 ### MachineState
 
@@ -156,7 +160,8 @@ Compose to test the MQTT integration path.
 
 The production Compose file exposes only the frontend on the host loopback
 interface. MQTT and FastAPI remain private inside the Docker network and Caddy
-terminates HTTPS in front of the application.
+terminates HTTPS in front of the application. Mosquitto, FastAPI, and Modbus
+TCP remain private to the Docker network.
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
@@ -165,7 +170,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 The included [`ops/Caddyfile.factory`](ops/Caddyfile.factory) routes
 `factory.elcherlab.com` to `127.0.0.1:3800` with an application-specific CSP.
 
-Configuration can be overridden with the environment variables documented in [`.env.example`](.env.example). Mosquitto's anonymous listener is intended for **local development only**; production deployments should add authentication and TLS.
+Configuration can be overridden with the environment variables documented in [.env.example](.env.example). See [Security and Network Exposure](docs/SECURITY.md) for active headers, private ports, verification, and deferred CSP work. Mosquitto anonymous access is for isolated development networks only.
 
 ## Controls and behavior
 
@@ -189,7 +194,8 @@ pip install -r simulator/requirements-dev.txt
 pytest simulator/tests
 
 # Python syntax/import check
-python -m compileall -q backend simulator
+python -m compileall -q backend simulator modbus_simulator
+pytest simulator/tests backend/tests
 
 # Compose configuration
 docker compose config --quiet
@@ -212,17 +218,26 @@ MiniFactoryTwin/
 See [Development Roadmap](docs/ROADMAP.md) for detailed scope, dependencies,
 out-of-scope decisions, and acceptance criteria for every planned version.
 
-### v0.2
+### v0.2 (complete)
 
-- SQLite production history
-- Alarm and event history
-- Cycle-time calculation
-- Production charts
+- SQLite production history in the `production-data` Docker volume (`/data/minifactory.db`)
+- Typed MQTT alarm and event history on `factory/machine/event`
+- Cycle-time calculation and hourly production charts
+- Read-only APIs: `/api/history/production`, `/api/history/events`, `/api/analytics/summary`, and `/api/analytics/production`
 
-### v0.3
+Back up without deleting the volume:
 
-- Modbus TCP simulator and register map
-- Real PLC connection adapter
+```bash
+docker compose -f docker-compose.prod.yml exec backend python -c "import sqlite3; src=sqlite3.connect('/data/minifactory.db'); dst=sqlite3.connect('/data/minifactory-backup.db'); src.backup(dst); dst.close(); src.close()"
+```
+
+Restore only while the backend is stopped, after preserving the current database. RESET clears live counters and workpieces but never history.
+
+### v0.3 (complete)
+
+- Modbus TCP simulator and versioned register map
+- Replaceable PLC source adapter
+- Command acknowledgement, reconnect, and stale/offline status
 
 ### v0.4
 
@@ -250,6 +265,36 @@ out-of-scope decisions, and acceptance criteria for every planned version.
 ## Why this project?
 
 Industrial systems are rarely just PLC programs or just dashboards. They connect deterministic equipment behavior, field protocols, backend validation, live data delivery, and operator-facing visualization. MiniFactoryTwin is designed as a practical integration project across **Industrial Automation + Backend + Frontend + IoT + Computer Vision**, while keeping each layer independently replaceable and understandable.
+
+## v0.3 Modbus mode
+
+The same API, WebSocket contract, dashboard, history, and controls operate with
+either MQTT state or the Modbus TCP adapter. MQTT remains the safe default.
+
+- Use DATA_SOURCE=mqtt for the original simulator.
+- Use DATA_SOURCE=modbus for the Modbus TCP simulator or compatible PLC.
+- Configure MODBUS_HOST, MODBUS_PORT, MODBUS_UNIT_ID, MODBUS_POLL_INTERVAL,
+  MODBUS_STALE_TIMEOUT, and MODBUS_COMMAND_TIMEOUT as needed.
+- GET /api/source reports the active source, connection, stale state, and error.
+- The Modbus port is private to the Compose network and is not host-published.
+
+See [Modbus register map v1](docs/MODBUS_REGISTER_MAP.md) for coils, registers,
+scaling, command acknowledgement, and real-PLC replacement requirements.
+
+Run a Modbus-mode deployment with:
+
+    DATA_SOURCE=modbus docker compose -f docker-compose.prod.yml up -d --build
+
+Switching sources is explicit and requires a backend recreation. Automatic
+control-source switching while running is intentionally not implemented.
+
+
+## Security documentation
+
+See [Security and Network Exposure](docs/SECURITY.md) for the active production
+headers, Docker network boundary, verification commands, and deferred CSP
+tightening. The current inline-style CSP exception remains documented and is
+intentionally unchanged.
 
 ## License
 

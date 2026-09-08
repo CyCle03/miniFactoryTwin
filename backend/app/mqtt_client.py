@@ -1,14 +1,17 @@
 import asyncio
 import logging
+import uuid
+from datetime import datetime, timezone
 from collections.abc import Awaitable, Callable
 
 import paho.mqtt.client as mqtt
 from pydantic import ValidationError
 
-from .models import CommandMessage, MachineState
+from .models import CommandMessage, MachineEvent, MachineState
 
 logger = logging.getLogger(__name__)
 StateHandler = Callable[[MachineState], Awaitable[None]]
+EventHandler = Callable[[MachineEvent], Awaitable[None]]
 
 
 class MqttBridge:
@@ -18,13 +21,19 @@ class MqttBridge:
         port: int,
         state_topic: str,
         command_topic: str,
+        event_topic: str,
         state_handler: StateHandler,
+        event_handler: EventHandler,
+        accept_state: bool = True,
     ) -> None:
         self.host = host
         self.port = port
         self.state_topic = state_topic
         self.command_topic = command_topic
+        self.event_topic = event_topic
         self._state_handler = state_handler
+        self._event_handler = event_handler
+        self.accept_state = accept_state
         self._loop: asyncio.AbstractEventLoop | None = None
         self.connected = False
         self.client = mqtt.Client(
@@ -73,8 +82,15 @@ class MqttBridge:
             logger.error("MQTT connection rejected: %s", reason_code)
             return
         self.connected = True
-        client.subscribe(self.state_topic, qos=0)
+        client.subscribe([(self.state_topic, 0), (self.event_topic, 1)])
         logger.info("MQTT connected; subscribed to %s", self.state_topic)
+
+    def _record_connection_error(self, message: str) -> None:
+        if self._loop is None:
+            return
+        event = MachineEvent(event_id=str(uuid.uuid4()), session_id="backend", timestamp=datetime.now(timezone.utc), event_type="mqtt_connection_error", severity="ERROR", message=message)
+        future = asyncio.run_coroutine_threadsafe(self._event_handler(event), self._loop)
+        future.add_done_callback(self._log_handler_error)
 
     def _on_disconnect(
         self,
@@ -88,20 +104,29 @@ class MqttBridge:
         self.connected = False
         if reason_code.is_failure:
             logger.warning("MQTT connection lost: %s", reason_code)
+            self._record_connection_error(f"MQTT connection lost: {reason_code}")
         else:
             logger.info("MQTT disconnected")
 
     def _on_message(self, client: mqtt.Client, userdata: object, message: mqtt.MQTTMessage) -> None:
         del client, userdata
         try:
-            state = MachineState.model_validate_json(message.payload)
+            if message.topic == self.event_topic:
+                event = MachineEvent.model_validate_json(message.payload)
+                handler = self._event_handler
+                value = event
+            else:
+                if not self.accept_state:
+                    return
+                handler = self._state_handler
+                value = MachineState.model_validate_json(message.payload)
         except ValidationError as exc:
             logger.warning("Discarding invalid MachineState: %s", exc)
             return
 
         if self._loop is None:
             return
-        future = asyncio.run_coroutine_threadsafe(self._state_handler(state), self._loop)
+        future = asyncio.run_coroutine_threadsafe(handler(value), self._loop)
         future.add_done_callback(self._log_handler_error)
 
     @staticmethod

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 
 
@@ -12,6 +13,10 @@ class Product:
     id: int
     position: float
     result: ProductResult
+    entered_at: datetime | None = None
+    entered_monotonic: float | None = None
+    inspected_at: datetime | None = None
+    inspected: bool = False
 
     def move(self, distance: float) -> None:
         self.position = min(100.0, self.position + distance)

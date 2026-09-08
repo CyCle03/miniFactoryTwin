@@ -23,6 +23,7 @@ class SimulatorService:
         self.port = int(os.getenv("MQTT_PORT", "1883"))
         self.state_topic = os.getenv("MQTT_STATE_TOPIC", "factory/machine/state")
         self.command_topic = os.getenv("MQTT_COMMAND_TOPIC", "factory/machine/command")
+        self.event_topic = os.getenv("MQTT_EVENT_TOPIC", "factory/machine/event")
         self.tick_rate = float(os.getenv("SIM_TICK_RATE", "20"))
         self.publish_rate = float(os.getenv("SIM_PUBLISH_RATE", "10"))
         good_rate = float(os.getenv("SIM_GOOD_RATE", "0.95"))
@@ -55,6 +56,8 @@ class SimulatorService:
                 current = time.monotonic()
                 with self.machine_lock:
                     self.machine.tick(min(current - previous, 0.25), current)
+                    events = self.machine.drain_events()
+                self._publish_events(events)
                 previous = current
                 if current >= next_publish:
                     self._publish_state(current)
@@ -76,6 +79,12 @@ class SimulatorService:
         result = self.client.publish(self.state_topic, payload, qos=0, retain=True)
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
             logger.warning("Machine state publish failed (rc=%s)", result.rc)
+
+    def _publish_events(self, events: list[dict[str, object]]) -> None:
+        if not self.connected:
+            return
+        for event in events:
+            self.client.publish(self.event_topic, json.dumps(event, separators=(",", ":")), qos=1)
 
     def _on_connect(
         self,
@@ -116,6 +125,8 @@ class SimulatorService:
                 raise ValueError("command must be a string")
             with self.machine_lock:
                 self.machine.handle_command(command)
+                events = self.machine.drain_events()
+            self._publish_events(events)
             logger.info("Applied machine command: %s", command)
             self._publish_state(time.monotonic())
         except (UnicodeDecodeError, json.JSONDecodeError, KeyError, ValueError) as exc:

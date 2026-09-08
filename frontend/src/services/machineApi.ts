@@ -32,3 +32,23 @@ export async function sendMachineCommand(command: MachineCommand): Promise<void>
   }
 }
 
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`)
+  if (!response.ok) throw new Error(`History request failed (${response.status})`)
+  return response.json() as Promise<T>
+}
+
+export async function fetchHistoryDashboard() {
+  const [production, events, summary, buckets] = await Promise.all([
+    fetchJson<import('../types/history').ProductionRecord[]>('/api/history/production?limit=12'),
+    fetchJson<import('../types/history').EventRecord[]>('/api/history/events?limit=12'),
+    fetchJson<import('../types/history').AnalyticsSummary>('/api/analytics/summary'),
+    fetchJson<import('../types/history').ProductionBucket[]>('/api/analytics/production?limit=12'),
+  ])
+  return { production, events, summary, buckets }
+}
+
+export async function fetchSourceStatus(): Promise<import('../types/source').SourceStatus> {
+  return fetchJson<import('../types/source').SourceStatus>('/api/source')
+}

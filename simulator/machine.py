@@ -1,5 +1,6 @@
 import random
 import time
+import uuid
 from collections import deque
 from datetime import datetime, timezone
 
@@ -30,22 +31,36 @@ class MachineSimulator:
         self._last_spawn = start_time - self.config.spawn_interval_seconds
         self._cylinder_extended_until = 0.0
         self._completed_at: deque[float] = deque()
+        self._events: deque[dict[str, object]] = deque()
+        self.session_id = str(uuid.uuid4())
 
     def handle_command(self, command: str) -> None:
         if command == "start":
+            changed = not self.running and not self.emergency
             self.power = True
             if not self.emergency:
                 self.running = True
+            if changed:
+                self._emit("machine_started", "INFO", "Machine started")
         elif command == "stop":
+            changed = self.running
             self.running = False
+            if changed:
+                self._emit("machine_stopped", "INFO", "Machine stopped")
         elif command == "reset":
             self._reset_production()
         elif command == "emergency_stop":
+            changed = not self.emergency
             self.emergency = True
             self.running = False
+            if changed:
+                self._emit("emergency_stop_activated", "CRITICAL", "Emergency stop activated")
         elif command == "emergency_reset":
+            changed = self.emergency
             self.emergency = False
             self.running = False
+            if changed:
+                self._emit("emergency_stop_reset", "WARNING", "Emergency stop reset")
         else:
             raise ValueError(f"Unsupported command: {command}")
 
@@ -63,7 +78,14 @@ class MachineSimulator:
         survivors: list[Product] = []
 
         for product in self.products:
+            previous_position = product.position
             product.move(distance)
+            if not product.inspected and previous_position < self.config.sensor_2_position <= product.position:
+                product.inspected = True
+                product.inspected_at = datetime.now(timezone.utc)
+                self._emit("inspection_completed", "INFO", "Inspection completed", product.id, {"result": product.result.value})
+                if product.result is ProductResult.REJECT:
+                    self._emit("product_rejected", "WARNING", "Product rejected", product.id, {"result": product.result.value})
             if product.result is ProductResult.REJECT and product.position >= self.config.cylinder_position:
                 self._complete(product, current_time)
                 self._cylinder_extended_until = current_time + self.config.cylinder_extend_seconds
@@ -111,7 +133,10 @@ class MachineSimulator:
             if self._random.random() < self.config.good_probability
             else ProductResult.REJECT
         )
-        self.products.append(Product(self._next_product_id, 0.0, result))
+        entered_at = datetime.now(timezone.utc)
+        product = Product(self._next_product_id, 0.0, result, entered_at, now)
+        self.products.append(product)
+        self._emit("product_entered", "INFO", "Product entered", product.id)
         self._next_product_id += 1
         self._last_spawn = now
 
@@ -126,6 +151,19 @@ class MachineSimulator:
         else:
             self.reject_count += 1
         self._completed_at.append(now)
+        completed_at = datetime.now(timezone.utc)
+        entered_at = product.entered_at or completed_at
+        inspected_at = product.inspected_at or completed_at
+        cycle_time = max(0.0, now - product.entered_monotonic) if product.entered_monotonic is not None else 0.0
+        self._emit("product_completed", "INFO", "Product completed", product.id, {"result": product.result.value, "started_at": entered_at.isoformat(), "inspected_at": inspected_at.isoformat(), "completed_at": completed_at.isoformat(), "cycle_time_seconds": cycle_time})
+
+    def drain_events(self) -> list[dict[str, object]]:
+        events = list(self._events)
+        self._events.clear()
+        return events
+
+    def _emit(self, event_type: str, severity: str, message: str, product_id: int | None = None, metadata: dict[str, object] | None = None) -> None:
+        self._events.append({"event_id": str(uuid.uuid4()), "session_id": self.session_id, "timestamp": datetime.now(timezone.utc).isoformat(), "event_type": event_type, "severity": severity, "message": message, "product_id": product_id, "metadata": metadata or {}})
 
     def _prune_ppm_window(self, now: float) -> None:
         while self._completed_at and now - self._completed_at[0] > 60.0:
