@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from .constants import SimulationConfig
 from .product import Product, ProductResult
-from .vision import InspectionProvider
+from .vision import AsyncInspectionProvider, InspectionProvider, InspectionResult
 
 
 class MachineSimulator:
@@ -18,10 +18,12 @@ class MachineSimulator:
         seed: int | None = None,
         initial_time: float | None = None,
         inspection_provider: InspectionProvider | None = None,
+        inspection_timeout_seconds: float = 1.0,
     ) -> None:
         self.config = config or SimulationConfig()
         self._random = random.Random(seed)
         self.inspection_provider = inspection_provider
+        self.inspection_timeout_seconds = inspection_timeout_seconds
         self.power = False
         self.running = False
         self.emergency = False
@@ -76,6 +78,7 @@ class MachineSimulator:
         if not self.running or self.emergency:
             return
 
+        self._collect_inspections(current_time)
         self._spawn_if_due(current_time)
         distance = self.config.conveyor_speed_units_per_second * delta_seconds
         survivors: list[Product] = []
@@ -83,24 +86,20 @@ class MachineSimulator:
         for product in self.products:
             previous_position = product.position
             product.move(distance)
-            if not product.inspected and previous_position < self.config.sensor_2_position <= product.position:
-                product.inspected = True
-                product.inspected_at = datetime.now(timezone.utc)
-                inspection_metadata: dict[str, object] = {"result": product.result.value}
-                if self.inspection_provider is not None:
-                    inspection = self.inspection_provider.inspect(product.id)
-                    product.result = inspection.result
-                    inspection_metadata = {
-                        "result": inspection.result.value,
-                        "confidence": inspection.confidence,
-                        "latency_ms": inspection.latency_ms,
-                        "model": inspection.model,
-                        "defect": inspection.defect,
-                    }
-                product.inspection_metadata = inspection_metadata
-                self._emit("inspection_completed", "INFO", "Inspection completed", product.id, inspection_metadata)
-                if product.result is ProductResult.REJECT:
-                    self._emit("product_rejected", "WARNING", "Product rejected", product.id, {"result": product.result.value})
+            if not product.inspection_requested and previous_position < self.config.sensor_2_position <= product.position:
+                product.inspection_requested = True
+                product.inspection_requested_at = current_time
+                if isinstance(self.inspection_provider, AsyncInspectionProvider):
+                    product.result = ProductResult.REJECT
+                    self.inspection_provider.submit(product.id)
+                    self._emit("inspection_requested", "INFO", "Inspection requested", product.id)
+                else:
+                    inspection = self.inspection_provider.inspect(product.id) if self.inspection_provider else None
+                    self._apply_inspection(product, inspection)
+            if product.inspection_requested and not product.inspected:
+                product.position = min(product.position, self.config.cylinder_position)
+                survivors.append(product)
+                continue
             if product.result is ProductResult.REJECT and product.position >= self.config.cylinder_position:
                 self._complete(product, current_time)
                 self._cylinder_extended_until = current_time + self.config.cylinder_extend_seconds
@@ -110,6 +109,50 @@ class MachineSimulator:
                 survivors.append(product)
 
         self.products = survivors
+
+    def _collect_inspections(self, now: float) -> None:
+        if not isinstance(self.inspection_provider, AsyncInspectionProvider):
+            return
+        for product in self.products:
+            if not product.inspection_requested or product.inspected:
+                continue
+            inspection = self.inspection_provider.poll(product.id)
+            requested_at = (
+                now if product.inspection_requested_at is None
+                else product.inspection_requested_at
+            )
+            if inspection is None and now - requested_at >= self.inspection_timeout_seconds:
+                inspection = InspectionResult(
+                    ProductResult.REJECT, 0.0,
+                    round(self.inspection_timeout_seconds * 1000, 3),
+                    "inspection-timeout", "inspection_timeout",
+                )
+            if inspection is not None:
+                self._apply_inspection(product, inspection)
+
+    def _apply_inspection(
+        self, product: Product, inspection: InspectionResult | None
+    ) -> None:
+        product.inspected = True
+        product.inspected_at = datetime.now(timezone.utc)
+        if inspection is None:
+            metadata: dict[str, object] = {"result": product.result.value}
+        else:
+            product.result = inspection.result
+            metadata = {
+                "result": inspection.result.value,
+                "confidence": inspection.confidence,
+                "latency_ms": inspection.latency_ms,
+                "model": inspection.model,
+                "defect": inspection.defect,
+            }
+        product.inspection_metadata = metadata
+        self._emit("inspection_completed", "INFO", "Inspection completed", product.id, metadata)
+        if product.result is ProductResult.REJECT:
+            self._emit(
+                "product_rejected", "WARNING", "Product rejected", product.id,
+                {"result": product.result.value},
+            )
 
     def state(self, now: float | None = None) -> dict[str, object]:
         current_time = time.monotonic() if now is None else now

@@ -1,7 +1,7 @@
 from simulator.constants import SimulationConfig
 from simulator.machine import MachineSimulator
 from simulator.product import Product, ProductResult
-from simulator.vision import InspectionResult
+from simulator.vision import AsyncInspectionProvider, InspectionResult
 
 
 class RejectInspection:
@@ -127,3 +127,33 @@ def test_vision_result_overrides_random_result_at_sensor_two() -> None:
     }
     assert completed["metadata"]["result"] == "REJECT"
     assert completed["metadata"]["inspection_confidence"] == 0.98
+
+
+def test_pending_inspection_holds_product_and_times_out_to_reject() -> None:
+    class NeverCompletes:
+        def inspect(self, product_id: int) -> InspectionResult:
+            import time
+            time.sleep(0.2)
+            return InspectionResult(ProductResult.GOOD, 1.0, 200, "slow")
+
+    provider = AsyncInspectionProvider(NeverCompletes())
+    try:
+        machine = MachineSimulator(
+            config=SimulationConfig(good_probability=1.0), initial_time=0.0,
+            inspection_provider=provider, inspection_timeout_seconds=0.5,
+        )
+        machine.handle_command("start")
+        machine.products = [Product(1, 69.0, ProductResult.GOOD)]
+        machine.tick(0.1, now=0.0)
+        assert machine.products[0].inspected is False
+        assert machine.products[0].position < machine.config.cylinder_position
+
+        machine.tick(0.1, now=0.6)
+        completed = next(
+            event for event in machine.drain_events()
+            if event["event_type"] == "inspection_completed"
+        )
+        assert completed["metadata"]["result"] == "REJECT"
+        assert completed["metadata"]["defect"] == "inspection_timeout"
+    finally:
+        provider.close()

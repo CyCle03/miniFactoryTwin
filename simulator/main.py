@@ -10,7 +10,7 @@ import paho.mqtt.client as mqtt
 
 from simulator.constants import SimulationConfig
 from simulator.machine import MachineSimulator
-from simulator.vision import ImageInspectionAdapter, YoloInspectionAdapter
+from simulator.vision import AsyncInspectionProvider, ImageInspectionAdapter, YoloInspectionAdapter
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -52,10 +52,13 @@ class SimulatorService:
                 )
         elif vision_mode != "disabled":
             raise ValueError(f"Unsupported VISION_MODE: {vision_mode}")
+        async_inspection = AsyncInspectionProvider(inspection_provider) if inspection_provider else None
         self.machine = MachineSimulator(
             SimulationConfig(good_probability=good_rate),
-            inspection_provider=inspection_provider,
+            inspection_provider=async_inspection,
+            inspection_timeout_seconds=float(os.getenv("VISION_TIMEOUT", "1.0")),
         )
+        self.inspection_provider = async_inspection
         self.machine_lock = threading.Lock()
         self.stop_event = threading.Event()
         self.connected = False
@@ -91,6 +94,8 @@ class SimulatorService:
                     self._publish_state(current)
                     next_publish = current + publish_interval
         finally:
+            if self.inspection_provider is not None:
+                self.inspection_provider.close()
             self.client.disconnect()
             self.client.loop_stop()
             logger.info("Simulator stopped")

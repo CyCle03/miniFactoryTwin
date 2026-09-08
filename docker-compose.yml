@@ -33,6 +33,7 @@ services:
       VISION_MODE: ${VISION_MODE:-disabled}
       VISION_IMAGE_DIR: /app/inspection-images
       VISION_MIN_CONFIDENCE: ${VISION_MIN_CONFIDENCE:-0.7}
+      VISION_TIMEOUT: ${VISION_TIMEOUT:-1.0}
     volumes:
       - ${VISION_IMAGE_DIR:-./inspection-images}:/app/inspection-images:ro
     depends_on:

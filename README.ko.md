@@ -166,6 +166,8 @@ docker compose -f docker-compose.yml -f docker-compose.vision.yml up --build
 
 `VISION_GOOD_CLASSES`에는 GOOD으로 인정할 모델 클래스 이름을 쉼표로 구분해 설정합니다. 그 외 클래스, 감지 결과 없음, 추론 오류, 낮은 신뢰도 결과는 모두 fail-safe `REJECT` 경로를 따릅니다. 운영 또는 상업적 사용 전에는 Ultralytics 라이선스 조건을 확인하세요.
 
+추론은 전용 worker에서 실행되므로 장비 상태 전송을 막지 않습니다. 제품은 판정 지점에서 최대 `VISION_TIMEOUT`초 동안 결과를 기다리며, 늦게 도착한 결과는 폐기하고 fail-safe `REJECT` 경로로 이동합니다.
+
 ## 운영 배포
 
 운영 Compose는 호스트 loopback에 프런트엔드만 노출합니다. MQTT, FastAPI, Modbus TCP는 Docker 내부 네트워크에 유지되고 Caddy가 애플리케이션 앞에서 HTTPS를 종료합니다.

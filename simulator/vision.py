@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Protocol
@@ -19,6 +20,37 @@ class InspectionResult:
 
 class InspectionProvider(Protocol):
     def inspect(self, product_id: int) -> InspectionResult: ...
+
+
+class AsyncInspectionProvider:
+    """Runs a synchronous inspection adapter without blocking machine ticks."""
+
+    def __init__(self, provider: InspectionProvider, workers: int = 1) -> None:
+        self.provider = provider
+        self.executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="vision")
+        self.futures: dict[int, Future[InspectionResult]] = {}
+
+    def submit(self, product_id: int) -> None:
+        if product_id not in self.futures:
+            self.futures[product_id] = self.executor.submit(self.provider.inspect, product_id)
+
+    def poll(self, product_id: int) -> InspectionResult | None:
+        future = self.futures.get(product_id)
+        if future is None or not future.done():
+            return None
+        del self.futures[product_id]
+        try:
+            return future.result()
+        except Exception:
+            return InspectionResult(
+                ProductResult.REJECT, 0.0, 0.0, "inspection-worker", "inspection_error"
+            )
+
+    def close(self) -> None:
+        for future in self.futures.values():
+            future.cancel()
+        self.futures.clear()
+        self.executor.shutdown(wait=False, cancel_futures=True)
 
 
 class BrightnessInference:

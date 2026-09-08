@@ -17,6 +17,8 @@ class Product:
     entered_monotonic: float | None = None
     inspected_at: datetime | None = None
     inspected: bool = False
+    inspection_requested: bool = False
+    inspection_requested_at: float | None = None
     inspection_metadata: dict[str, object] = field(default_factory=dict)
 
     def move(self, distance: float) -> None:

@@ -188,6 +188,11 @@ accepted as GOOD. Every other class, missing detection, inference error, or
 low-confidence result follows the fail-safe REJECT path. Review the Ultralytics
 license terms before production or commercial use.
 
+Inference runs on a dedicated worker so machine-state publication remains
+responsive. A product waits at the decision point for up to `VISION_TIMEOUT`
+seconds; a late result is discarded and the product follows the fail-safe
+REJECT route.
+
 ### Production deployment
 
 The production Compose file exposes only the frontend on the host loopback
