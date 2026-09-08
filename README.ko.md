@@ -4,6 +4,8 @@
 
 > 산업 자동화, PLC 통신, 머신 비전 실험을 위한 오픈 소스 스마트 팩토리 디지털 트윈 시뮬레이터입니다.
 
+**라이브 데모: [https://factory.elcherlab.com](https://factory.elcherlab.com)**
+
 MiniFactoryTwin은 MQTT 또는 Modbus TCP를 상태 소스로 선택할 수 있는 생산 셀 디지털 트윈입니다. FastAPI가 두 소스를 공통 `MachineState`로 정규화하고, 생산 이력을 SQLite에 저장하며, WebSocket을 통해 React HMI에 실시간 상태를 전달합니다.
 
 ## 주요 기능
@@ -65,13 +67,17 @@ flowchart LR
 
 ## 빠른 시작
 
-### 방법 A — Docker Compose(권장)
+### 방법 A — 운영 중인 데모(권장)
+
+[https://factory.elcherlab.com](https://factory.elcherlab.com)에 접속해 **Start**를 누릅니다. 별도 설치는 필요하지 않습니다.
+
+### 방법 B — Docker Compose
 
 요구 사항: Docker Engine 20.10 이상과 Compose 플러그인
 
 ```bash
-git clone <your-repository-url>
-cd MiniFactoryTwin
+git clone https://github.com/CyCle03/miniFactoryTwin.git
+cd miniFactoryTwin
 docker compose up --build
 ```
 
@@ -83,7 +89,7 @@ docker compose up --build
 docker compose down
 ```
 
-### 방법 B — 로컬 개발
+### 방법 C — 로컬 개발
 
 Python 3.11 이상과 Node.js 20 이상을 권장합니다. 네 개 프로세스를 별도 터미널에서 실행합니다.
 
@@ -122,7 +128,7 @@ Python 3.11 이상과 Node.js 20 이상을 권장합니다. 네 개 프로세스
 
    [http://localhost:5173](http://localhost:5173)을 엽니다.
 
-### 방법 C — Docker와 MQTT 없는 빠른 데모
+### 방법 D — Docker와 MQTT 없는 빠른 데모
 
 개발 전용 로컬 전송 모드를 사용하면 Mosquitto 없이 대화형 대시보드를 실행할 수 있습니다. 동일한 Python 장비 시뮬레이터를 사용하되 MQTT 구간만 우회하며, 운영 Compose 경로에는 영향을 주지 않습니다.
 
