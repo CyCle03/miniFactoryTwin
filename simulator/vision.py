@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Any, Callable, Protocol
 
 from .product import ProductResult
 
@@ -80,5 +80,74 @@ class ImageInspectionAdapter:
             confidence=round(confidence, 4),
             latency_ms=round((time.perf_counter() - started) * 1000, 3),
             model=self.inference.name,
+            defect=defect,
+        )
+
+
+class YoloInspectionAdapter:
+    """Optional Ultralytics YOLO adapter with an injectable model for tests."""
+
+    def __init__(
+        self,
+        image_paths: list[Path],
+        model_path: Path,
+        minimum_confidence: float = 0.7,
+        good_classes: set[str] | None = None,
+        model: Any | None = None,
+    ) -> None:
+        if not image_paths:
+            raise ValueError("at least one inspection image is required")
+        if not 0 <= minimum_confidence <= 1:
+            raise ValueError("minimum_confidence must be between 0 and 1")
+        if model is None:
+            if not model_path.is_file():
+                raise ValueError(f"YOLO model does not exist: {model_path}")
+            try:
+                from ultralytics import YOLO
+            except ImportError as exc:
+                raise RuntimeError(
+                    "YOLO mode requires simulator/requirements-yolo.txt"
+                ) from exc
+            model = YOLO(str(model_path))
+        self.image_paths = image_paths
+        self.model_path = model_path
+        self.minimum_confidence = minimum_confidence
+        self.good_classes = {value.lower() for value in (good_classes or {"good"})}
+        self.model = model
+
+    def inspect(self, product_id: int) -> InspectionResult:
+        started = time.perf_counter()
+        path = self.image_paths[(product_id - 1) % len(self.image_paths)]
+        try:
+            predictions = self.model(str(path), verbose=False)
+            prediction = predictions[0]
+            class_ids = prediction.boxes.cls.tolist()
+            confidences = prediction.boxes.conf.tolist()
+            if not class_ids:
+                return self._result(started, ProductResult.REJECT, 0.0, "no_detection")
+            best = max(range(len(confidences)), key=confidences.__getitem__)
+            confidence = float(confidences[best])
+            label = str(prediction.names[int(class_ids[best])]).lower()
+            if confidence < self.minimum_confidence:
+                return self._result(started, ProductResult.REJECT, confidence, "low_confidence")
+            result = ProductResult.GOOD if label in self.good_classes else ProductResult.REJECT
+            return self._result(
+                started, result, confidence, None if result is ProductResult.GOOD else label
+            )
+        except Exception:
+            return self._result(started, ProductResult.REJECT, 0.0, "inspection_error")
+
+    def _result(
+        self,
+        started: float,
+        result: ProductResult,
+        confidence: float,
+        defect: str | None,
+    ) -> InspectionResult:
+        return InspectionResult(
+            result=result,
+            confidence=round(confidence, 4),
+            latency_ms=round((time.perf_counter() - started) * 1000, 3),
+            model=f"yolo:{self.model_path.name}",
             defect=defect,
         )

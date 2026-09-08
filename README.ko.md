@@ -158,6 +158,14 @@ VISION_MODE=images docker compose up --build
 
 이미지는 파일명 순서로 처리되며 제품 ID에 따라 순환 재사용됩니다. 현재 개발용 밝기 판정 어댑터는 CPU만 사용하고 결정론적으로 동작하며, 이후 YOLO 어댑터와 같은 인터페이스를 사용합니다. 읽을 수 없는 이미지, 처리 오류, `VISION_MIN_CONFIDENCE` 미만 결과는 안전하게 `REJECT` 처리됩니다. confidence, latency, model, defect 정보는 검사 이벤트와 생산 이력에 저장됩니다. 신뢰할 수 없는 카메라 피드는 마운트하지 마세요.
 
+YOLO 추론을 사용하려면 Ultralytics 호환 모델을 `models/best.pt`에 두고 선택형 Compose override를 사용합니다. 용량이 큰 YOLO 의존성은 기본 시뮬레이터 이미지에 포함되지 않습니다.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.vision.yml up --build
+```
+
+`VISION_GOOD_CLASSES`에는 GOOD으로 인정할 모델 클래스 이름을 쉼표로 구분해 설정합니다. 그 외 클래스, 감지 결과 없음, 추론 오류, 낮은 신뢰도 결과는 모두 fail-safe `REJECT` 경로를 따릅니다. 운영 또는 상업적 사용 전에는 Ultralytics 라이선스 조건을 확인하세요.
+
 ## 운영 배포
 
 운영 Compose는 호스트 loopback에 프런트엔드만 노출합니다. MQTT, FastAPI, Modbus TCP는 Docker 내부 네트워크에 유지되고 Caddy가 애플리케이션 앞에서 HTTPS를 종료합니다.

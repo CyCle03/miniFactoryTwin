@@ -175,6 +175,19 @@ processing errors, and results below `VISION_MIN_CONFIDENCE` fail safe to
 `REJECT`. Confidence, latency, model, and defect metadata are recorded with the
 inspection event and production history. Do not mount untrusted camera feeds.
 
+For YOLO inference, place an Ultralytics-compatible model at `models/best.pt`
+and use the optional Compose override. The larger YOLO dependencies are kept
+out of the default simulator image:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.vision.yml up --build
+```
+
+Set `VISION_GOOD_CLASSES` to a comma-separated list of model classes that are
+accepted as GOOD. Every other class, missing detection, inference error, or
+low-confidence result follows the fail-safe REJECT path. Review the Ultralytics
+license terms before production or commercial use.
+
 ### Production deployment
 
 The production Compose file exposes only the frontend on the host loopback

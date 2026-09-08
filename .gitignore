@@ -11,4 +11,7 @@ __pycache__/
 .DS_Store
 mosquitto/data/
 mosquitto/log/
-
+inspection-images/*
+!inspection-images/.gitkeep
+models/*
+!models/.gitkeep

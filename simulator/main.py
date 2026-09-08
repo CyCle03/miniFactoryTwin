@@ -10,7 +10,7 @@ import paho.mqtt.client as mqtt
 
 from simulator.constants import SimulationConfig
 from simulator.machine import MachineSimulator
-from simulator.vision import ImageInspectionAdapter
+from simulator.vision import ImageInspectionAdapter, YoloInspectionAdapter
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -30,13 +30,28 @@ class SimulatorService:
         self.publish_rate = float(os.getenv("SIM_PUBLISH_RATE", "10"))
         good_rate = float(os.getenv("SIM_GOOD_RATE", "0.95"))
         inspection_provider = None
-        if os.getenv("VISION_MODE", "disabled").lower() == "images":
+        vision_mode = os.getenv("VISION_MODE", "disabled").lower()
+        if vision_mode in {"images", "yolo"}:
             image_directory = Path(os.getenv("VISION_IMAGE_DIR", "/app/inspection-images"))
+            if not image_directory.is_dir():
+                raise ValueError(f"VISION_IMAGE_DIR does not exist: {image_directory}")
             image_paths = sorted(path for path in image_directory.iterdir() if path.is_file())
-            inspection_provider = ImageInspectionAdapter(
-                image_paths,
-                minimum_confidence=float(os.getenv("VISION_MIN_CONFIDENCE", "0.7")),
-            )
+            minimum_confidence = float(os.getenv("VISION_MIN_CONFIDENCE", "0.7"))
+            if vision_mode == "images":
+                inspection_provider = ImageInspectionAdapter(
+                    image_paths, minimum_confidence=minimum_confidence,
+                )
+            else:
+                inspection_provider = YoloInspectionAdapter(
+                    image_paths,
+                    model_path=Path(os.getenv("VISION_MODEL_PATH", "/app/models/best.pt")),
+                    minimum_confidence=minimum_confidence,
+                    good_classes={value.strip() for value in os.getenv(
+                        "VISION_GOOD_CLASSES", "good"
+                    ).split(",") if value.strip()},
+                )
+        elif vision_mode != "disabled":
+            raise ValueError(f"Unsupported VISION_MODE: {vision_mode}")
         self.machine = MachineSimulator(
             SimulationConfig(good_probability=good_rate),
             inspection_provider=inspection_provider,
