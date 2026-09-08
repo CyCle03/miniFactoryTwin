@@ -4,11 +4,13 @@ import os
 import signal
 import threading
 import time
+from pathlib import Path
 
 import paho.mqtt.client as mqtt
 
 from simulator.constants import SimulationConfig
 from simulator.machine import MachineSimulator
+from simulator.vision import ImageInspectionAdapter
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -27,7 +29,18 @@ class SimulatorService:
         self.tick_rate = float(os.getenv("SIM_TICK_RATE", "20"))
         self.publish_rate = float(os.getenv("SIM_PUBLISH_RATE", "10"))
         good_rate = float(os.getenv("SIM_GOOD_RATE", "0.95"))
-        self.machine = MachineSimulator(SimulationConfig(good_probability=good_rate))
+        inspection_provider = None
+        if os.getenv("VISION_MODE", "disabled").lower() == "images":
+            image_directory = Path(os.getenv("VISION_IMAGE_DIR", "/app/inspection-images"))
+            image_paths = sorted(path for path in image_directory.iterdir() if path.is_file())
+            inspection_provider = ImageInspectionAdapter(
+                image_paths,
+                minimum_confidence=float(os.getenv("VISION_MIN_CONFIDENCE", "0.7")),
+            )
+        self.machine = MachineSimulator(
+            SimulationConfig(good_probability=good_rate),
+            inspection_provider=inspection_provider,
+        )
         self.machine_lock = threading.Lock()
         self.stop_event = threading.Event()
         self.connected = False

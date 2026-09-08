@@ -10,6 +10,10 @@ export interface ProductionRecord {
   inspected_at: string
   completed_at: string
   cycle_time_seconds: number
+  inspection_confidence: number | null
+  inspection_latency_ms: number | null
+  inspection_model: string | null
+  inspection_defect: string | null
   created_at: string
 }
 

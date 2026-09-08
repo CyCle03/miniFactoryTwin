@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
@@ -17,6 +17,7 @@ class Product:
     entered_monotonic: float | None = None
     inspected_at: datetime | None = None
     inspected: bool = False
+    inspection_metadata: dict[str, object] = field(default_factory=dict)
 
     def move(self, distance: float) -> None:
         self.position = min(100.0, self.position + distance)
@@ -27,4 +28,3 @@ class Product:
             "position": round(self.position, 2),
             "result": self.result.value,
         }
-

@@ -156,6 +156,23 @@ Open [http://localhost:5173](http://localhost:5173), then press **Start**.
 Use this mode for a portfolio demo or local UI development only; use Docker
 Compose to test the MQTT integration path.
 
+### Optional image inspection
+
+The simulator keeps its original seeded GOOD/REJECT behavior by default. To
+classify products from repeatable sample images at Sensor 2, place supported
+images in `inspection-images/` and start the stack with image inspection enabled:
+
+```bash
+VISION_MODE=images docker compose up --build
+```
+
+Images are processed in filename order and reused cyclically by product ID.
+The development brightness adapter provides deterministic, CPU-only behavior
+behind the same interface intended for a later YOLO adapter. Unreadable images,
+processing errors, and results below `VISION_MIN_CONFIDENCE` fail safe to
+`REJECT`. Confidence, latency, model, and defect metadata are recorded with the
+inspection event and production history. Do not mount untrusted camera feeds.
+
 ### Production deployment
 
 The production Compose file exposes only the frontend on the host loopback

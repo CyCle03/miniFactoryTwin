@@ -1,6 +1,13 @@
 from simulator.constants import SimulationConfig
 from simulator.machine import MachineSimulator
 from simulator.product import Product, ProductResult
+from simulator.vision import InspectionResult
+
+
+class RejectInspection:
+    def inspect(self, product_id: int) -> InspectionResult:
+        assert product_id >= 1
+        return InspectionResult(ProductResult.REJECT, 0.98, 2.5, "test-model", "scratch")
 
 
 def test_start_spawns_and_moves_a_product() -> None:
@@ -100,3 +107,23 @@ def test_reject_product_emits_reject_and_completion_events() -> None:
     completed = next(event for event in events if event["event_type"] == "product_completed")
     assert completed["metadata"]["result"] == "REJECT"
     assert completed["metadata"]["cycle_time_seconds"] == 6.0
+
+
+def test_vision_result_overrides_random_result_at_sensor_two() -> None:
+    machine = MachineSimulator(
+        config=SimulationConfig(good_probability=1.0), seed=1,
+        initial_time=600.0, inspection_provider=RejectInspection(),
+    )
+    machine.handle_command("start")
+    machine.tick(0, now=600.0)
+    machine.tick(6, now=606.0)
+
+    events = machine.drain_events()
+    inspected = next(event for event in events if event["event_type"] == "inspection_completed")
+    completed = next(event for event in events if event["event_type"] == "product_completed")
+    assert inspected["metadata"] == {
+        "result": "REJECT", "confidence": 0.98, "latency_ms": 2.5,
+        "model": "test-model", "defect": "scratch",
+    }
+    assert completed["metadata"]["result"] == "REJECT"
+    assert completed["metadata"]["inspection_confidence"] == 0.98

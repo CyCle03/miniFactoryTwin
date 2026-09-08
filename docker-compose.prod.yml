@@ -28,6 +28,11 @@ services:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
       SIM_GOOD_RATE: ${SIM_GOOD_RATE:-0.95}
+      VISION_MODE: ${VISION_MODE:-disabled}
+      VISION_IMAGE_DIR: /app/inspection-images
+      VISION_MIN_CONFIDENCE: ${VISION_MIN_CONFIDENCE:-0.7}
+    volumes:
+      - ${VISION_IMAGE_DIR:-./inspection-images}:/app/inspection-images:ro
     depends_on:
       - mosquitto
 

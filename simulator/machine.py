@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from .constants import SimulationConfig
 from .product import Product, ProductResult
+from .vision import InspectionProvider
 
 
 class MachineSimulator:
@@ -16,9 +17,11 @@ class MachineSimulator:
         config: SimulationConfig | None = None,
         seed: int | None = None,
         initial_time: float | None = None,
+        inspection_provider: InspectionProvider | None = None,
     ) -> None:
         self.config = config or SimulationConfig()
         self._random = random.Random(seed)
+        self.inspection_provider = inspection_provider
         self.power = False
         self.running = False
         self.emergency = False
@@ -83,7 +86,19 @@ class MachineSimulator:
             if not product.inspected and previous_position < self.config.sensor_2_position <= product.position:
                 product.inspected = True
                 product.inspected_at = datetime.now(timezone.utc)
-                self._emit("inspection_completed", "INFO", "Inspection completed", product.id, {"result": product.result.value})
+                inspection_metadata: dict[str, object] = {"result": product.result.value}
+                if self.inspection_provider is not None:
+                    inspection = self.inspection_provider.inspect(product.id)
+                    product.result = inspection.result
+                    inspection_metadata = {
+                        "result": inspection.result.value,
+                        "confidence": inspection.confidence,
+                        "latency_ms": inspection.latency_ms,
+                        "model": inspection.model,
+                        "defect": inspection.defect,
+                    }
+                product.inspection_metadata = inspection_metadata
+                self._emit("inspection_completed", "INFO", "Inspection completed", product.id, inspection_metadata)
                 if product.result is ProductResult.REJECT:
                     self._emit("product_rejected", "WARNING", "Product rejected", product.id, {"result": product.result.value})
             if product.result is ProductResult.REJECT and product.position >= self.config.cylinder_position:
@@ -155,7 +170,9 @@ class MachineSimulator:
         entered_at = product.entered_at or completed_at
         inspected_at = product.inspected_at or completed_at
         cycle_time = max(0.0, now - product.entered_monotonic) if product.entered_monotonic is not None else 0.0
-        self._emit("product_completed", "INFO", "Product completed", product.id, {"result": product.result.value, "started_at": entered_at.isoformat(), "inspected_at": inspected_at.isoformat(), "completed_at": completed_at.isoformat(), "cycle_time_seconds": cycle_time})
+        metadata: dict[str, object] = {"result": product.result.value, "started_at": entered_at.isoformat(), "inspected_at": inspected_at.isoformat(), "completed_at": completed_at.isoformat(), "cycle_time_seconds": cycle_time}
+        metadata.update({f"inspection_{key}": value for key, value in product.inspection_metadata.items() if key != "result"})
+        self._emit("product_completed", "INFO", "Product completed", product.id, metadata)
 
     def drain_events(self) -> list[dict[str, object]]:
         events = list(self._events)
