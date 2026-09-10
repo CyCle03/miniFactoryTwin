@@ -58,6 +58,8 @@ function InspectionPanel({ record }: { record?: ProductionRecord }) {
   return <section className="panel inspection-panel">
     <header className="section-heading compact"><div><span className="eyebrow">MACHINE VISION</span><h2>Latest Inspection</h2></div></header>
     {!record ? <p className="empty-state">No inspection results yet.</p> :
+      <div className="inspection-content">
+      {record.inspection_image_name && <img className="inspection-preview" src={`/api/inspection-images/${encodeURIComponent(record.inspection_image_name)}`} alt={`Inspection source for product ${record.product_id}`} />}
       <div className="inspection-metrics">
         <div><span>PRODUCT</span><strong>#{record.product_id}</strong></div>
         <div><span>RESULT</span><strong className={record.result.toLowerCase()}>{record.result}</strong></div>
@@ -65,7 +67,7 @@ function InspectionPanel({ record }: { record?: ProductionRecord }) {
         <div><span>LATENCY</span><strong>{latency(record.inspection_latency_ms)}</strong></div>
         <div><span>MODEL</span><strong>{record.inspection_model ?? 'SIMULATED'}</strong></div>
         <div><span>DEFECT</span><strong>{hasVision ? record.inspection_defect ?? 'NONE' : '—'}</strong></div>
-      </div>}
+      </div></div>}
   </section>
 }
 

@@ -14,6 +14,7 @@ export interface ProductionRecord {
   inspection_latency_ms: number | null
   inspection_model: string | null
   inspection_defect: string | null
+  inspection_image_name: string | null
   created_at: string
 }
 

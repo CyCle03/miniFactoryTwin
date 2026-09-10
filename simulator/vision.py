@@ -16,6 +16,7 @@ class InspectionResult:
     latency_ms: float
     model: str
     defect: str | None = None
+    image_name: str | None = None
 
 
 class InspectionProvider(Protocol):
@@ -113,6 +114,7 @@ class ImageInspectionAdapter:
             latency_ms=round((time.perf_counter() - started) * 1000, 3),
             model=self.inference.name,
             defect=defect,
+            image_name=path.name,
         )
 
 
@@ -156,18 +158,21 @@ class YoloInspectionAdapter:
             class_ids = prediction.boxes.cls.tolist()
             confidences = prediction.boxes.conf.tolist()
             if not class_ids:
-                return self._result(started, ProductResult.REJECT, 0.0, "no_detection")
+                return self._result(started, ProductResult.REJECT, 0.0, "no_detection", path.name)
             best = max(range(len(confidences)), key=confidences.__getitem__)
             confidence = float(confidences[best])
             label = str(prediction.names[int(class_ids[best])]).lower()
             if confidence < self.minimum_confidence:
-                return self._result(started, ProductResult.REJECT, confidence, "low_confidence")
+                return self._result(started, ProductResult.REJECT, confidence, "low_confidence", path.name)
             result = ProductResult.GOOD if label in self.good_classes else ProductResult.REJECT
             return self._result(
-                started, result, confidence, None if result is ProductResult.GOOD else label
+                started, result, confidence, None if result is ProductResult.GOOD else label,
+                path.name,
             )
         except Exception:
-            return self._result(started, ProductResult.REJECT, 0.0, "inspection_error")
+            return self._result(
+                started, ProductResult.REJECT, 0.0, "inspection_error", path.name
+            )
 
     def _result(
         self,
@@ -175,6 +180,7 @@ class YoloInspectionAdapter:
         result: ProductResult,
         confidence: float,
         defect: str | None,
+        image_name: str,
     ) -> InspectionResult:
         return InspectionResult(
             result=result,
@@ -182,4 +188,5 @@ class YoloInspectionAdapter:
             latency_ms=round((time.perf_counter() - started) * 1000, 3),
             model=f"yolo:{self.model_path.name}",
             defect=defect,
+            image_name=image_name,
         )

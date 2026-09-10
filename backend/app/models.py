@@ -117,6 +117,7 @@ class ProductionRecord(BaseModel):
     inspection_latency_ms: float | None = Field(default=None, ge=0)
     inspection_model: str | None = None
     inspection_defect: str | None = None
+    inspection_image_name: str | None = None
     created_at: datetime
 
 

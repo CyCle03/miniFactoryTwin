@@ -4,9 +4,11 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from .history import HistoryRepository
 from .models import (
@@ -33,6 +35,9 @@ source_connected = False
 source_stale = True
 source_error: str | None = None
 local_runtime: object | None = None
+inspection_image_directory = Path(
+    os.getenv("VISION_IMAGE_DIR", "/app/inspection-images")
+).resolve()
 
 
 async def receive_state(state: MachineState) -> None:
@@ -113,7 +118,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="MiniFactoryTwin API", version="0.3.0",
+    title="MiniFactoryTwin API", version="0.4.0",
     description="Source-neutral MQTT/Modbus backend for MiniFactoryTwin.",
     lifespan=lifespan,
 )
@@ -187,6 +192,21 @@ def event_history(limit: int = Query(50, ge=1, le=500), start: datetime | None =
     if start and end and start > end:
         raise HTTPException(status_code=422, detail="start must not be after end")
     return history.events(limit, start, end, severity.value if severity else None, event_type)
+
+
+@app.get("/api/inspection-images/{image_name}", response_class=FileResponse)
+async def inspection_image(image_name: str) -> FileResponse:
+    """Serve only a named image from the configured read-only inspection directory."""
+    if Path(image_name).name != image_name:
+        raise HTTPException(status_code=404, detail="Inspection image not found")
+    image_path = (inspection_image_directory / image_name).resolve()
+    if (
+        image_path.parent != inspection_image_directory
+        or image_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        or not image_path.is_file()
+    ):
+        raise HTTPException(status_code=404, detail="Inspection image not found")
+    return FileResponse(image_path, headers={"Cache-Control": "private, max-age=60"})
 
 
 @app.get("/api/analytics/summary", response_model=AnalyticsSummary)

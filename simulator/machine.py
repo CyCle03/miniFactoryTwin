@@ -146,6 +146,8 @@ class MachineSimulator:
                 "model": inspection.model,
                 "defect": inspection.defect,
             }
+            if inspection.image_name is not None:
+                metadata["image_name"] = inspection.image_name
         product.inspection_metadata = metadata
         self._emit("inspection_completed", "INFO", "Inspection completed", product.id, metadata)
         if product.result is ProductResult.REJECT:

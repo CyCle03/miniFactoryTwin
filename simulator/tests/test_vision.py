@@ -38,6 +38,7 @@ def test_fixed_images_produce_reproducible_results() -> None:
     )
 
     assert adapter.inspect(1).result is ProductResult.GOOD
+    assert adapter.inspect(1).image_name == "good.png"
     assert adapter.inspect(2).result is ProductResult.REJECT
     assert adapter.inspect(3).result is ProductResult.GOOD
 

@@ -175,6 +175,9 @@ behind the same interface intended for a later YOLO adapter. Unreadable images,
 processing errors, and results below `VISION_MIN_CONFIDENCE` fail safe to
 `REJECT`. Confidence, latency, model, and defect metadata are recorded with the
 inspection event and production history. Do not mount untrusted camera feeds.
+When an inspection source image is available, the latest-inspection panel shows
+a bounded preview served by the backend from its read-only image mount. Only
+`.jpg`, `.jpeg`, `.png`, `.webp`, and `.bmp` files in that directory are exposed.
 
 For YOLO inference, place an Ultralytics-compatible model at `models/best.pt`
 and use the optional Compose override. The larger YOLO dependencies are kept
@@ -227,13 +230,11 @@ cd frontend
 pnpm run lint
 pnpm run build
 
-# Simulator unit tests (from repository root)
-pip install -r simulator/requirements-dev.txt
-pytest simulator/tests
-
-# Python syntax/import check
-python -m compileall -q backend simulator modbus_simulator
-pytest simulator/tests backend/tests
+# Python environment and tests (from repository root)
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt -r simulator/requirements-dev.txt
+.venv/bin/python -m compileall -q backend simulator modbus_simulator
+.venv/bin/python -m pytest -q backend/tests simulator/tests
 
 # Compose configuration
 docker compose config --quiet
@@ -252,6 +253,9 @@ MiniFactoryTwin/
 ```
 
 ## Roadmap
+
+Version 0.4 is complete: vision-backed history now includes a bounded preview
+of the source inspection image when image or YOLO mode is enabled.
 
 See [Development Roadmap](docs/ROADMAP.md) for detailed scope, dependencies,
 out-of-scope decisions, and acceptance criteria for every planned version.
@@ -277,11 +281,12 @@ Restore only while the backend is stopped, after preserving the current database
 - Replaceable PLC source adapter
 - Command acknowledgement, reconnect, and stale/offline status
 
-### v0.4
+### v0.4 (complete)
 
-- OpenCV camera integration
-- YOLO-based inspection
-- Replace randomized GOOD / REJECT results with vision inference
+- Deterministic OpenCV sample-image inspection and optional YOLO adapter
+- Asynchronous inference with timeout and fail-safe REJECT routing
+- Inspection confidence, latency, model, defect, and source-image history
+- Safely bounded source-image preview in the HMI
 
 ### v0.5
 

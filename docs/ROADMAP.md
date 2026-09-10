@@ -26,7 +26,7 @@ only when its acceptance criteria are met.
 | v0.1 | Working digital twin | Live conveyor cell using MQTT, FastAPI, WebSocket, and React | Complete |
 | v0.2 | History and analytics | Persistent production records, events, cycle time, and charts | Complete |
 | v0.3 | PLC communication | Modbus TCP simulator, register map, and replaceable PLC adapter | Complete |
-| v0.4 | Machine vision | Camera pipeline and YOLO-backed inspection results | Planned |
+| v0.4 | Machine vision | Camera pipeline and YOLO-backed inspection results | Complete |
 | v0.5 | Configuration | Configurable components, mappings, and simulated/real modes | Planned |
 | v0.6 | Factory scale | Multiple cells and a factory-level layout | Planned |
 | Future | Mobile robotics | ROS2/AMR integration after the production-cell platform matures | Deferred |
@@ -60,7 +60,7 @@ control and telemetry loop.
 Turn the live demonstration into an observable production system whose results
 can be reviewed after a product or container has left the simulation.
 
-### Planned work
+### Delivered
 
 - Add persistent SQLite storage backed by a Docker volume.
 - Record one production-history row per completed product.
@@ -100,7 +100,7 @@ can be reviewed after a product or container has left the simulation.
 Prove that the UI and backend can operate from an industrial register protocol
 without being coupled to the original Python simulator.
 
-### Planned work
+### Delivered
 
 - Add a Modbus TCP device simulator for the conveyor cell.
 - Define a versioned register and coil map.
@@ -135,7 +135,7 @@ without being coupled to the original Python simulator.
 Replace randomized inspection with a reproducible vision pipeline while keeping
 the simulator usable when no camera is available.
 
-### Planned work
+### Delivered
 
 - Add an OpenCV image-ingestion and preprocessing pipeline.
 - Support a sample-image or recorded-stream mode for repeatable development.
@@ -263,4 +263,3 @@ A version is complete only when all applicable items below are satisfied:
 - README and architecture documentation match the shipped implementation.
 - The public deployment is healthy after release, or a tested local deployment
   procedure is provided when the feature is not yet intended for production.
-

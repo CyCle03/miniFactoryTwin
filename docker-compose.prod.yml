@@ -48,8 +48,10 @@ services:
       MODBUS_PORT: 5020
       CORS_ORIGINS: https://factory.elcherlab.com
       DATABASE_PATH: /data/minifactory.db
+      VISION_IMAGE_DIR: /app/inspection-images
     volumes:
       - production-data:/data
+      - ${VISION_IMAGE_DIR:-./inspection-images}:/app/inspection-images:ro
     depends_on:
       - mosquitto
       - modbus-simulator

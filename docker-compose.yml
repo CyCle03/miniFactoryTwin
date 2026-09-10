@@ -50,8 +50,10 @@ services:
       MODBUS_PORT: 5020
       CORS_ORIGINS: http://localhost:5173,http://localhost:8080
       DATABASE_PATH: /data/minifactory.db
+      VISION_IMAGE_DIR: /app/inspection-images
     volumes:
       - production-data:/data
+      - ${VISION_IMAGE_DIR:-./inspection-images}:/app/inspection-images:ro
     ports:
       - "8000:8000"
     depends_on:

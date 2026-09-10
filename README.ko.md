@@ -164,6 +164,8 @@ VISION_MODE=images docker compose up --build
 
 이미지는 파일명 순서로 처리되며 제품 ID에 따라 순환 재사용됩니다. 현재 개발용 밝기 판정 어댑터는 CPU만 사용하고 결정론적으로 동작하며, 이후 YOLO 어댑터와 같은 인터페이스를 사용합니다. 읽을 수 없는 이미지, 처리 오류, `VISION_MIN_CONFIDENCE` 미만 결과는 안전하게 `REJECT` 처리됩니다. confidence, latency, model, defect 정보는 검사 이벤트와 생산 이력에 저장됩니다. 신뢰할 수 없는 카메라 피드는 마운트하지 마세요.
 
+검사 원본이 있으면 최신 검사 패널에 제한된 크기로 미리보기가 표시됩니다. 백엔드는 읽기 전용 이미지 마운트 안에 있는 `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp` 파일만 제공합니다.
+
 YOLO 추론을 사용하려면 Ultralytics 호환 모델을 `models/best.pt`에 두고 선택형 Compose override를 사용합니다. 용량이 큰 YOLO 의존성은 기본 시뮬레이터 이미지에 포함되지 않습니다.
 
 ```bash
@@ -203,9 +205,10 @@ pnpm run lint
 pnpm run build
 
 # Python 테스트 및 구문 검사(저장소 루트)
-pip install -r backend/requirements.txt -r simulator/requirements-dev.txt
-python -m compileall -q backend simulator modbus_simulator
-python -m pytest simulator/tests backend/tests
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt -r simulator/requirements-dev.txt
+.venv/bin/python -m compileall -q backend simulator modbus_simulator
+.venv/bin/python -m pytest -q backend/tests simulator/tests
 
 # Compose 구성
 docker compose config --quiet
@@ -228,12 +231,15 @@ MiniFactoryTwin/
 
 ## 로드맵
 
+v0.4가 완료되었습니다. 이미지 또는 YOLO 모드에서는 비전 검사 이력과 함께
+원본 검사 이미지가 제한된 크기의 미리보기로 표시됩니다.
+
 버전별 범위, 제외 대상, 승인 기준은 [개발 로드맵](docs/ROADMAP.md)을 참고하세요.
 
 - **v0.1 완료** — MQTT 기반 동작 가능한 디지털 트윈
 - **v0.2 완료** — SQLite 생산 이력, 이벤트, 사이클 타임, 차트
 - **v0.3 완료** — Modbus TCP 시뮬레이터, 레지스터 맵, 교체 가능한 PLC 어댑터
-- **v0.4 진행 중** — OpenCV 검사 기반, 검사 이력과 HMI; YOLO 및 비동기 처리는 예정
+- **v0.4 완료** — OpenCV/YOLO 검사, 비동기 fail-safe 처리, 검사 이력과 이미지 미리보기
 - **v0.5 예정** — 구성 가능한 컴포넌트와 SIMULATED/REAL 모드
 - **v0.6 예정** — 다중 생산 셀과 팩토리 레이아웃
 - **향후** — ROS2, AMR, TurtleBot 디지털 트윈

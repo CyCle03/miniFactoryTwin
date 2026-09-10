@@ -50,6 +50,7 @@ class HistoryRepository:
                 ("inspection_latency_ms", "REAL"),
                 ("inspection_model", "TEXT"),
                 ("inspection_defect", "TEXT"),
+                ("inspection_image_name", "TEXT"),
             ):
                 if name not in columns:
                     db.execute(f"ALTER TABLE production ADD COLUMN {name} {sql_type}")
@@ -71,13 +72,15 @@ class HistoryRepository:
                     """INSERT OR IGNORE INTO production
                     (event_id,session_id,product_id,result,started_at,inspected_at,
                      completed_at,cycle_time_seconds,created_at,inspection_confidence,
-                     inspection_latency_ms,inspection_model,inspection_defect)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     inspection_latency_ms,inspection_model,inspection_defect,
+                     inspection_image_name)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (event.event_id, event.session_id, event.product_id, meta["result"],
                      meta["started_at"], meta["inspected_at"], meta["completed_at"],
                      meta["cycle_time_seconds"], datetime.now().astimezone().isoformat(),
                      meta.get("inspection_confidence"), meta.get("inspection_latency_ms"),
-                     meta.get("inspection_model"), meta.get("inspection_defect")),
+                     meta.get("inspection_model"), meta.get("inspection_defect"),
+                     meta.get("inspection_image_name")),
                 )
             return cursor.rowcount == 1
 

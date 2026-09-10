@@ -40,7 +40,7 @@ function App() {
         <HistoryDashboard />
         <Controls state={state} busy={busy} connected={connection === 'connected'} onCommand={handleCommand} />
       </main>
-      <footer><span>MiniFactoryTwin v0.3</span><span>SIMULATED DEVICE</span></footer>
+      <footer><span>MiniFactoryTwin v0.4</span><span>SIMULATED DEVICE</span></footer>
     </div>
   )
 }
